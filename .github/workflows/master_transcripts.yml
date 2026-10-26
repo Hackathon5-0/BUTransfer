@@ -72,8 +72,3 @@ jobs:
           slot-name: 'Production'
           package: .
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_B86FCA508DB040619C1624DCA3E49790 }}
-          # Replace wwwroot entirely: files left over from an earlier app (e.g. a root server.js)
-          # otherwise get picked up at startup
-          type: zip
-          clean: true
-          restart: true
