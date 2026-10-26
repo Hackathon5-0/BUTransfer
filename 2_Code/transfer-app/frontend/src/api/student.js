@@ -3,10 +3,8 @@ import client from './client'
 export const checkEligibility = (data) =>
   client.post('/student/eligibility-check', data).then(r => r.data)
 
-export const submitApplication = (formData) =>
-  client.post('/student/applications', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }).then(r => r.data)
+export const submitApplication = (application) =>
+  client.post('/student/applications', application).then(r => r.data)
 
 export const getApplicationStatus = (token) =>
   client.get(`/student/status/${token}`).then(r => r.data)

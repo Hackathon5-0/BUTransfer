@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { ChevronRight, ChevronLeft, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { submitApplication } from '../../api/student'
+import { submitApplication, uploadStudentDocument } from '../../api/student'
 import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
 import Textarea from '../../components/ui/Textarea'
@@ -162,22 +162,50 @@ export default function ApplicationForm() {
 
     setSubmitting(true)
     try {
-      const fd = new FormData()
-      Object.entries(data).forEach(([k, v]) => {
-        if (v !== null && v !== undefined && k !== 'transcript' && k !== 'government_id' && k !== 'syllabi' && k !== 'other_docs' && k !== 'confirmed') {
-          fd.append(k, v)
-        }
+      // The backend takes the application as JSON, then documents one at a time via the secure token
+      const { data: result } = await submitApplication({
+        student_name: `${data.first_name} ${data.last_name}`.trim(),
+        student_email: data.email,
+        student_phone: data.phone || null,
+        date_of_birth: data.date_of_birth || null,
+        transfer_from_institution: data.transfer_from_institution,
+        transfer_from_program: data.current_program || null,
+        transfer_to_program: PROGRAMS.find(p => p.value === data.program)?.label || data.program,
+        transfer_to_department: PROGRAM_DEPARTMENTS[data.program] || null,
+        expected_start_term: TERMS.find(t => t.value === data.expected_start_term)?.label || data.expected_start_term || null,
+        academic_history: {
+          gpa: parseFloat(data.gpa),
+          credits_completed: parseInt(data.total_credits, 10),
+          academic_standing: data.academic_standing || null,
+          transfer_date: data.graduation_date || null
+        },
+        personal_statement: data.personal_statement || null,
+        additional_info: { address: data.address || null, why_transferring: data.why_transferring || null }
       })
-      if (data.transcript) fd.append('transcript', data.transcript)
-      if (data.government_id) fd.append('government_id', data.government_id)
-      if (data.syllabi) data.syllabi.forEach(f => fd.append('syllabi', f))
-      if (data.other_docs) data.other_docs.forEach(f => fd.append('other_docs', f))
+      const secureToken = result.secure_link.split('/status/').pop()
 
-      const result = await submitApplication(fd)
+      const uploads = [
+        [data.transcript, 'transcript'],
+        [data.government_id, 'identification'],
+        ...data.syllabi.map(f => [f, 'syllabus']),
+        ...data.other_docs.map(f => [f, 'supporting'])
+      ].filter(([file]) => file)
+      const failed = []
+      for (const [file, type] of uploads) {
+        try {
+          await uploadStudentDocument(secureToken, file, type)
+        } catch {
+          failed.push(file.name)
+        }
+      }
+      if (failed.length > 0) {
+        toast.error(`Some documents could not be uploaded (${failed.join(', ')}). You can add them from your status page.`)
+      }
+
       navigate('/apply/confirm', {
         state: {
           reference_number: result.reference_number,
-          secure_token: result.secure_token,
+          secure_token: secureToken,
           application_id: result.id
         }
       })

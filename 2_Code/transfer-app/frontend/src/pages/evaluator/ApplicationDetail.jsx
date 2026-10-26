@@ -259,11 +259,11 @@ export default function ApplicationDetail() {
                       </Badge>
                       <span className="text-xs text-gray-400">{formatDate(req.created_at)}</span>
                     </div>
-                    <p className="text-sm text-gray-700 mb-2">{req.message_to_student}</p>
-                    {req.requested_items && (
+                    <p className="text-sm text-gray-700 mb-2">{req.message_to_student || req.message}</p>
+                    {(req.requested_items || req.items) && (
                       <ul className="text-xs text-gray-600 space-y-0.5 mb-2">
-                        {req.requested_items.map((item, j) => (
-                          <li key={j}>• {item}</li>
+                        {(req.requested_items || req.items).map((item, j) => (
+                          <li key={j}>• {typeof item === 'string' ? item : item.description}</li>
                         ))}
                       </ul>
                     )}

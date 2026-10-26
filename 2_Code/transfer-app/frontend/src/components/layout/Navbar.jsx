@@ -47,7 +47,7 @@ export default function Navbar() {
   const loadNotifications = async () => {
     try {
       const data = await getNotifications()
-      setNotifications(data.notifications || data || [])
+      setNotifications(data.data || data.notifications || [])
     } catch {
       // Silently fail
     }

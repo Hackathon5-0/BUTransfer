@@ -1,13 +1,30 @@
 import React from 'react'
+import toast from 'react-hot-toast'
 import { FileText, Image, File, Download, Calendar } from 'lucide-react'
+import client from '../../api/client'
 
 const DOC_TYPE_LABELS = {
   transcript: 'Official Transcript',
   id: 'Government ID',
+  identification: 'Government ID',
   syllabus: 'Course Syllabus',
   personal_statement: 'Personal Statement',
   recommendation: 'Recommendation Letter',
+  supporting: 'Supporting Document',
   other: 'Supporting Document'
+}
+
+// Documents are private; fetch a short-lived signed URL (staff JWT, or the student's secure token)
+async function openDocument(doc, token) {
+  // Open the tab synchronously so popup blockers allow it
+  const tab = window.open('', '_blank')
+  try {
+    const { data } = await client.get(`/documents/${doc.id}`, { params: token ? { token } : undefined })
+    tab.location.href = data.data.download_url
+  } catch {
+    tab?.close()
+    toast.error('Could not open document')
+  }
 }
 
 function getFileIcon(fileName, docType) {
@@ -23,7 +40,7 @@ function formatDate(dateStr) {
   return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(dateStr))
 }
 
-export default function DocumentList({ documents = [], emptyText = 'No documents uploaded' }) {
+export default function DocumentList({ documents = [], emptyText = 'No documents uploaded', token }) {
   if (!documents || documents.length === 0) {
     return (
       <div className="text-center py-8">
@@ -54,16 +71,16 @@ export default function DocumentList({ documents = [], emptyText = 'No documents
                 <span className="text-xs text-gray-500">
                   {DOC_TYPE_LABELS[doc.document_type] || doc.document_type || 'Document'}
                 </span>
-                {doc.uploaded_at && (
+                {(doc.uploaded_at || doc.created_at) && (
                   <span className="text-xs text-gray-400 flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
-                    {formatDate(doc.uploaded_at)}
+                    {formatDate(doc.uploaded_at || doc.created_at)}
                   </span>
                 )}
               </div>
             </div>
 
-            {(doc.file_url || doc.url) && (
+            {(doc.file_url || doc.url) ? (
               <a
                 href={doc.file_url || doc.url}
                 target="_blank"
@@ -73,6 +90,15 @@ export default function DocumentList({ documents = [], emptyText = 'No documents
               >
                 <Download className="w-4 h-4" />
               </a>
+            ) : doc.id && (
+              <button
+                type="button"
+                onClick={() => openDocument(doc, token)}
+                className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors flex-shrink-0"
+                title="Open"
+              >
+                <Download className="w-4 h-4" />
+              </button>
             )}
           </div>
         )

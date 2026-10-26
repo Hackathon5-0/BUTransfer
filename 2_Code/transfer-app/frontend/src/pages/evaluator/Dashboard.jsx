@@ -139,7 +139,7 @@ export default function EvaluatorDashboard() {
                           {app.transfer_from_institution || app.from_institution || '—'}
                         </td>
                         <td className="px-4 py-3 hidden lg:table-cell text-gray-600">
-                          {app.program || '—'}
+                          {app.transfer_to_program || app.program || '—'}
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={app.status} />

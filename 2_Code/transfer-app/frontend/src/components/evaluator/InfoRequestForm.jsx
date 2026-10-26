@@ -44,8 +44,8 @@ export default function InfoRequestForm({ applicationId, onSuccess, onClose, isO
     try {
       const validItems = items.filter(i => i.trim())
       await createInfoRequest(applicationId, {
-        requested_items: validItems,
-        message_to_student: message
+        items: validItems.map(description => ({ type: 'other', description })),
+        message
       })
       toast.success('Information request sent to student')
       onSuccess && onSuccess()

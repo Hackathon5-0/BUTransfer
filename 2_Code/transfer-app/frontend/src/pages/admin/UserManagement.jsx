@@ -211,7 +211,7 @@ export default function UserManagement() {
   const load = async () => {
     try {
       const data = await getEvaluators()
-      setEvaluators(data.evaluators || data || [])
+      setEvaluators(data.data || data.evaluators || [])
     } catch {
       toast.error('Failed to load evaluators')
     } finally {
@@ -295,7 +295,7 @@ export default function UserManagement() {
                       ) : <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-5 py-3 hidden md:table-cell font-medium text-gray-700">
-                      {ev.active_cases ?? '—'}
+                      {ev.active_cases ?? ev.current_case_count ?? '—'}
                     </td>
                     <td className="px-5 py-3">
                       {ev.is_active

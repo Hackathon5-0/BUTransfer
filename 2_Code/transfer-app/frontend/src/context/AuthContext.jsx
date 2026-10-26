@@ -15,18 +15,24 @@ export function AuthProvider({ children }) {
   // On mount: verify stored token
   useEffect(() => {
     const storedToken = localStorage.getItem(TOKEN_KEY)
-    const storedUser = localStorage.getItem(USER_KEY)
+    let storedUser = null
+    try {
+      storedUser = JSON.parse(localStorage.getItem(USER_KEY))
+    } catch {
+      // Corrupt value (e.g. "undefined" left by an earlier failed login)
+    }
 
-    if (storedToken && storedUser) {
+    if (storedToken && storedToken !== 'undefined' && storedUser) {
       setToken(storedToken)
-      setUser(JSON.parse(storedUser))
+      setUser(storedUser)
       // Verify token is still valid
       client.get('/auth/me', {
         headers: { Authorization: `Bearer ${storedToken}` }
       })
         .then(res => {
-          setUser(res.data.user || res.data)
-          localStorage.setItem(USER_KEY, JSON.stringify(res.data.user || res.data))
+          const me = res.data.data
+          setUser(me)
+          localStorage.setItem(USER_KEY, JSON.stringify(me))
         })
         .catch(() => {
           // Token invalid — clear auth
@@ -34,6 +40,7 @@ export function AuthProvider({ children }) {
         })
         .finally(() => setLoading(false))
     } else {
+      clearAuth()
       setLoading(false)
     }
   }, [])
@@ -47,7 +54,7 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     const res = await client.post('/auth/login', { email, password })
-    const { token: newToken, user: newUser } = res.data
+    const { access_token: newToken, user: newUser } = res.data.data
     localStorage.setItem(TOKEN_KEY, newToken)
     localStorage.setItem(USER_KEY, JSON.stringify(newUser))
     setToken(newToken)

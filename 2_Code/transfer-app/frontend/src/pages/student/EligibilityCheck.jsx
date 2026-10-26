@@ -58,14 +58,23 @@ export default function EligibilityCheck() {
 
     setLoading(true)
     try {
-      const data = await checkEligibility({
+      const { data } = await checkEligibility({
         gpa: parseFloat(form.gpa),
-        credit_hours: parseInt(form.credit_hours, 10),
-        transfer_from_institution: form.transfer_from,
-        program: form.program,
-        has_transcripts: form.has_transcripts === 'yes'
+        credits: parseInt(form.credit_hours, 10),
+        institution: form.transfer_from || null,
+        program: form.program || null,
+        hasTranscripts: form.has_transcripts === 'yes'
       })
-      setResult(data)
+      // The backend scores criteria as true / false / null with a reason
+      setResult({
+        ...data,
+        partial: !data.eligible && data.score >= 50,
+        criteria_results: data.criteria_results.map(c => ({
+          ...c,
+          result: c.result === true ? 'met' : c.result === false ? 'not_met' : 'needs_verification',
+          detail: c.reason
+        }))
+      })
     } catch (err) {
       // If backend not available, do client-side check
       const gpa = parseFloat(form.gpa)

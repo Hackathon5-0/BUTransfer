@@ -41,10 +41,15 @@ function ConfidenceBar({ score }) {
   )
 }
 
+// The backend reports pass / fail / unable_to_determine
+const RESULT_ALIASES = { pass: 'met', fail: 'not_met' }
+const FLAG_VARIANTS = { positive: 'success', concern: 'warning', critical: 'error' }
+
 function CriterionRow({ criterion }) {
   const [expanded, setExpanded] = useState(false)
-  const resultVariant = criterion.result === 'met' ? 'met'
-    : criterion.result === 'not_met' ? 'not_met'
+  const result = RESULT_ALIASES[criterion.result] || criterion.result
+  const resultVariant = result === 'met' ? 'met'
+    : result === 'not_met' ? 'not_met'
     : 'needs_verification'
 
   return (
@@ -54,9 +59,9 @@ function CriterionRow({ criterion }) {
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex-shrink-0">
-          {criterion.result === 'met'
+          {result === 'met'
             ? <CheckCircle className="w-4 h-4 text-green-600" />
-            : criterion.result === 'not_met'
+            : result === 'not_met'
             ? <XCircle className="w-4 h-4 text-red-600" />
             : <AlertCircle className="w-4 h-4 text-yellow-600" />
           }
@@ -65,7 +70,7 @@ function CriterionRow({ criterion }) {
           <span className="text-sm font-medium text-gray-900">{criterion.criterion_name || criterion.name}</span>
         </div>
         <Badge variant={resultVariant} className="flex-shrink-0">
-          {criterion.result === 'met' ? 'Met' : criterion.result === 'not_met' ? 'Not Met' : 'Needs Verification'}
+          {result === 'met' ? 'Met' : result === 'not_met' ? 'Not Met' : 'Needs Verification'}
         </Badge>
         {expanded ? <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />}
       </div>
@@ -122,16 +127,19 @@ export default function AIEvaluationReport({ evaluation, onTrigger, triggering =
   const results = evaluation.criteria_results || evaluation.results || []
   const flags = evaluation.flags || []
   const missingDocs = evaluation.missing_documents || []
-  const recommendations = evaluation.recommendations || []
+  // The backend stores recommendations as a single paragraph
+  const recommendations = [].concat(evaluation.recommendations || [])
+  const evaluatedAt = evaluation.evaluated_at || evaluation.completed_at
+  const reportText = evaluation.report_text || evaluation.evaluation_report
 
   return (
     <div className="space-y-5">
       {/* Confidence Score */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <ConfidenceBar score={evaluation.confidence_score || evaluation.overall_score} />
-        {evaluation.evaluated_at && (
+        {evaluatedAt && (
           <p className="text-xs text-gray-400 mt-2">
-            Evaluated: {new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(evaluation.evaluated_at))}
+            Evaluated: {new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(evaluatedAt))}
           </p>
         )}
       </div>
@@ -162,7 +170,7 @@ export default function AIEvaluationReport({ evaluation, onTrigger, triggering =
             {missingDocs.map((doc, i) => (
               <li key={i} className="text-sm text-amber-800 flex items-start gap-2">
                 <span className="text-amber-500 mt-0.5">•</span>
-                {typeof doc === 'string' ? doc : doc.name || doc.document_type || JSON.stringify(doc)}
+                {typeof doc === 'string' ? doc : doc.description || doc.name || doc.document_type || JSON.stringify(doc)}
               </li>
             ))}
           </ul>
@@ -179,10 +187,13 @@ export default function AIEvaluationReport({ evaluation, onTrigger, triggering =
           <div className="space-y-2">
             {flags.map((flag, i) => (
               <div key={i} className="flex items-start gap-2">
-                <Badge variant={flag.severity || 'error'} className="mt-0.5 flex-shrink-0">
-                  {flag.severity || 'flag'}
+                <Badge variant={flag.severity || FLAG_VARIANTS[flag.type] || 'error'} className="mt-0.5 flex-shrink-0">
+                  {flag.severity || flag.type || 'flag'}
                 </Badge>
-                <p className="text-sm text-red-800">{flag.message || flag.description || String(flag)}</p>
+                <p className="text-sm text-red-800">
+                  {flag.title && <span className="font-medium">{flag.title}: </span>}
+                  {flag.message || flag.description || String(flag)}
+                </p>
               </div>
             ))}
           </div>
@@ -205,7 +216,7 @@ export default function AIEvaluationReport({ evaluation, onTrigger, triggering =
       )}
 
       {/* Full Report */}
-      {evaluation.report_text && (
+      {reportText && (
         <div>
           <button
             onClick={() => setShowFullReport(!showFullReport)}
@@ -217,7 +228,7 @@ export default function AIEvaluationReport({ evaluation, onTrigger, triggering =
           </button>
           {showFullReport && (
             <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-4 max-h-64 overflow-y-auto">
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{evaluation.report_text}</p>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{reportText}</p>
             </div>
           )}
         </div>

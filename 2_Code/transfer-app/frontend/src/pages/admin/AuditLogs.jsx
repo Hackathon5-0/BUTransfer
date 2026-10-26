@@ -116,7 +116,7 @@ export default function AuditLogs() {
     try {
       const data = await getAuditLogs(filters)
       setEntries(data.entries || data.data || data || [])
-      setTotal(data.total || 0)
+      setTotal(data.meta?.total || data.total || 0)
     } catch {
       // Silently fail — show empty
     } finally {

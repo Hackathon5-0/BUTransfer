@@ -19,13 +19,13 @@ export const deleteCriterion = (id) =>
   client.delete(`/admin/criteria/${id}`).then(r => r.data)
 
 export const getEvaluators = () =>
-  client.get('/admin/evaluators').then(r => r.data)
+  client.get('/evaluators').then(r => r.data)
 
 export const createEvaluator = (data) =>
-  client.post('/admin/evaluators', data).then(r => r.data)
+  client.post('/evaluators', data).then(r => r.data)
 
 export const updateEvaluator = (id, data) =>
-  client.put(`/admin/evaluators/${id}`, data).then(r => r.data)
+  client.put(`/evaluators/${id}`, data).then(r => r.data)
 
 export const getStats = () =>
   client.get('/admin/stats').then(r => r.data)

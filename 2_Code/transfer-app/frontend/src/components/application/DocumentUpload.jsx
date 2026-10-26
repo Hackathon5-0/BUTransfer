@@ -6,10 +6,9 @@ import Button from '../ui/Button'
 
 const DOCUMENT_TYPES = [
   { value: 'transcript', label: 'Official Transcript' },
-  { value: 'id', label: 'Government-Issued ID' },
+  { value: 'identification', label: 'Government-Issued ID' },
   { value: 'syllabus', label: 'Course Syllabus' },
-  { value: 'personal_statement', label: 'Personal Statement' },
-  { value: 'recommendation', label: 'Recommendation Letter' },
+  { value: 'supporting', label: 'Personal Statement / Recommendation Letter' },
   { value: 'other', label: 'Other Supporting Document' }
 ]
 

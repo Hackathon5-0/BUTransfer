@@ -3,7 +3,8 @@ import axios from 'axios'
 const TOKEN_KEY = 'transfer_auth_token'
 
 const client = axios.create({
-  baseURL: 'http://localhost:4000/api',
+  // Set VITE_API_URL at build time for deployed environments
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:4000/api',
   headers: {
     'Content-Type': 'application/json'
   }
@@ -25,6 +26,10 @@ client.interceptors.request.use(
 client.interceptors.response.use(
   response => response,
   error => {
+    // Backend errors are { error: { code, message } }; expose the message where pages look for it
+    const body = error.response?.data
+    if (body?.error?.message && !body.message) body.message = body.error.message
+
     if (error.response?.status === 401) {
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem('transfer_user')

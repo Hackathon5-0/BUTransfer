@@ -57,7 +57,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     Promise.allSettled([
-      getReports().then(d => setReports(d)),
+      getReports().then(d => setReports(d.data || d)),
       listApplications({ page: 1, limit: 10, sort: 'submitted_at:desc' }).then(d => {
         setRecentApps(d.applications || d.data || [])
       })
@@ -72,7 +72,12 @@ export default function AdminDashboard() {
     )
   }
 
-  const stats = reports?.stats || {}
+  // The reports endpoint has no stats object; derive the cards from its totals
+  const stats = reports?.stats || {
+    total_applications: reports?.total_applications,
+    pending_evaluation: (reports?.by_status?.submitted || 0) + (reports?.by_status?.under_evaluation || 0),
+    avg_processing_days: reports?.avg_processing_time_days,
+  }
 
   const statusData = reports?.by_status
     ? Object.entries(reports.by_status).map(([status, count]) => ({
@@ -177,7 +182,7 @@ export default function AdminDashboard() {
                     <td className="px-5 py-3 font-medium text-gray-900">
                       {app.student_name || `${app.first_name || ''} ${app.last_name || ''}`.trim()}
                     </td>
-                    <td className="px-5 py-3 text-gray-600 hidden sm:table-cell">{app.program || '—'}</td>
+                    <td className="px-5 py-3 text-gray-600 hidden sm:table-cell">{app.transfer_to_program || app.program || '—'}</td>
                     <td className="px-5 py-3"><StatusBadge status={app.status} /></td>
                     <td className="px-5 py-3 text-gray-500 hidden md:table-cell">{formatDate(app.submitted_at || app.created_at)}</td>
                   </tr>

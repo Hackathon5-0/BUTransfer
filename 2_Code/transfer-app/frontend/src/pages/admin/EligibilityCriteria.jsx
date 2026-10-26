@@ -181,7 +181,7 @@ export default function EligibilityCriteria() {
   const load = async () => {
     try {
       const data = await getCriteria()
-      setCriteria(data.criteria || data || [])
+      setCriteria(data.data || data.criteria || [])
     } catch {
       toast.error('Failed to load criteria')
     } finally {

@@ -34,7 +34,7 @@ const STATUS_STAGE_MAP = {
 
 const DOC_TYPES = [
   { value: 'transcript', label: 'Official Transcript' },
-  { value: 'id', label: 'Government ID' },
+  { value: 'identification', label: 'Government ID' },
   { value: 'syllabus', label: 'Course Syllabus' },
   { value: 'other', label: 'Other Document' }
 ]
@@ -121,7 +121,7 @@ export default function ApplicationStatus() {
 
   useEffect(() => {
     load()
-    getStudentNotifications(token).then(d => setNotifications(d.notifications || d || [])).catch(() => {})
+    getStudentNotifications(token).then(d => setNotifications(d.data || d.notifications || [])).catch(() => {})
   }, [token, load])
 
   // Auto-refresh during evaluation
@@ -269,12 +269,12 @@ export default function ApplicationStatus() {
             </h3>
             {openInfoRequests.map(req => (
               <div key={req.id} className="bg-white rounded-lg border border-amber-200 p-3">
-                <p className="text-sm text-gray-700 mb-2">{req.message_to_student}</p>
-                {req.requested_items && (
+                <p className="text-sm text-gray-700 mb-2">{req.message_to_student || req.message}</p>
+                {(req.requested_items || req.items) && (
                   <ul className="space-y-1 mb-3">
-                    {req.requested_items.map((item, i) => (
+                    {(req.requested_items || req.items).map((item, i) => (
                       <li key={i} className="text-sm text-amber-800 flex items-center gap-2">
-                        <span className="text-amber-500">•</span>{item}
+                        <span className="text-amber-500">•</span>{typeof item === 'string' ? item : item.description}
                       </li>
                     ))}
                   </ul>
@@ -394,7 +394,7 @@ export default function ApplicationStatus() {
         {/* Documents */}
         <Section title={`Documents (${documents.length})`} defaultOpen={false}>
           <div className="pt-4 space-y-4">
-            <DocumentList documents={documents} />
+            <DocumentList documents={documents} token={token} />
 
             <Button variant="secondary" size="sm" onClick={() => setShowUpload(!showUpload)} className="w-full">
               <Upload className="w-4 h-4" />
