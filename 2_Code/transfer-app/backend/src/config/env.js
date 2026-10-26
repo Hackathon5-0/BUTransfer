@@ -48,6 +48,7 @@ const envSchema = z.object({
   APP_URL: z.string().url().optional().default('http://localhost:5173'),
   UPLOAD_MAX_MB: z.coerce.number().int().positive().optional().default(10),
   LOG_REQUESTS: z.string().optional().default('true'),
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().optional().default(100),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -19,6 +19,9 @@ npm-debug.log*
 # Storage / uploads
 backend/storage/
 
+# Frontend build bundled into the backend at deploy time
+backend/public/
+
 # OS
 .DS_Store
 Thumbs.db

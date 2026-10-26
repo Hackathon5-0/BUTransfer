@@ -1,4 +1,7 @@
-﻿import express from 'express';
+﻿import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
@@ -33,14 +36,15 @@ export function createApp() {
 
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: env.RATE_LIMIT_MAX,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests. Please try again after 15 minutes.' } },
     // Skipped in development: every local request shares one IP, and the SPA makes several calls per page
-    skip: (req) => req.path === '/api/health' || env.NODE_ENV === 'development',
+    skip: (req) => req.path === '/health' || env.NODE_ENV === 'development',
   });
-  app.use(limiter);
+  // API only: page loads of the bundled frontend shouldn't use up the quota
+  app.use('/api', limiter);
 
   app.use(express.json({ limit: '5mb' }));
   app.use(express.urlencoded({ extended: true, limit: '5mb' }));
@@ -53,6 +57,15 @@ export function createApp() {
   }
 
   app.use('/api', apiRoutes);
+
+  // Deployments copy the built React app into backend/public and serve it from the same origin;
+  // any non-API route falls back to index.html so client-side routes survive a refresh
+  const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public');
+  if (fs.existsSync(path.join(publicDir, 'index.html'))) {
+    app.use(express.static(publicDir));
+    app.get(/^\/(?!api(\/|$)).*/, (_req, res) => res.sendFile(path.join(publicDir, 'index.html')));
+  }
+
   app.use(errorHandler);
 
   return app;
