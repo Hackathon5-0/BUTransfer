@@ -3,7 +3,7 @@ import multer from 'multer';
 import * as documentService from '../services/document.service.js';
 import * as notificationService from '../services/notification.service.js';
 import { query } from '../config/db.js';
-import { badRequest, notFound } from '../utils/errors.js';
+import { badRequest, notFound, unauthorized } from '../utils/errors.js';
 import { env } from '../config/env.js';
 
 const router = Router();
@@ -71,6 +71,17 @@ router.get('/:id', async (req, res, next) => {
       const { data } = await supabaseAdmin.auth.getUser(token);
       if (data?.user) requestorId = data.user.id;
     }
+
+    if (!requestorId) {
+      const token = req.query.token;
+      if (!token) return next(unauthorized('Authentication required: provide a JWT or secure token'));
+      const docResult = await query(
+        `SELECT 1 FROM application_documents ad JOIN applications a ON a.id = ad.application_id WHERE ad.id = $1 AND a.secure_token::text = $2 LIMIT 1`,
+        [req.params.id, token]
+      );
+      if (docResult.rows.length === 0) return next(notFound('Document'));
+    }
+
     const { document, url } = await documentService.getDocument(req.params.id, requestorId);
     return res.status(200).json({ data: { ...document, download_url: url, url_expires_in_seconds: 3600 } });
   } catch (err) { return next(err); }

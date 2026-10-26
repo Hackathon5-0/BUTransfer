@@ -32,7 +32,8 @@ async function runMigrations() {
   try {
     for (const file of files) {
       const filePath = path.join(migrationsDir, file);
-      const sql = fs.readFileSync(filePath, 'utf8');
+      // Strip the UTF-8 BOM some editors add; Postgres rejects it as a syntax error.
+      const sql = fs.readFileSync(filePath, 'utf8').replace(/^﻿/, '');
       console.log(`[Migrate] Running: ${file} ...`);
       const start = Date.now();
       try {

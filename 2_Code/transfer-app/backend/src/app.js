@@ -9,6 +9,10 @@ import { errorHandler } from './middleware/error-handler.js';
 export function createApp() {
   const app = express();
 
+  // Azure App Service / Container Apps sit behind one proxy hop; without this the rate
+  // limiter sees every user as the proxy's IP and they all share one quota
+  if (env.NODE_ENV === 'production') app.set('trust proxy', 1);
+
   app.use(helmet({ crossOriginEmbedderPolicy: false, contentSecurityPolicy: env.NODE_ENV === 'production' }));
 
   const allowedOrigins = env.CORS_ORIGINS
@@ -33,7 +37,8 @@ export function createApp() {
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests. Please try again after 15 minutes.' } },
-    skip: (req) => req.path === '/api/health',
+    // Skipped in development: every local request shares one IP, and the SPA makes several calls per page
+    skip: (req) => req.path === '/api/health' || env.NODE_ENV === 'development',
   });
   app.use(limiter);
 
