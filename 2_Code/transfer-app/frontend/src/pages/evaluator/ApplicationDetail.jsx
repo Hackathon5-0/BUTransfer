@@ -9,6 +9,7 @@ import {
   getApplication, triggerEvaluation, uploadDocument, getAuditLog, addEvaluatorNote
 } from '../../api/applications'
 import AIEvaluationReport from '../../components/evaluator/AIEvaluationReport'
+import CreditEvaluation from '../../components/evaluator/CreditEvaluation'
 import DecisionForm from '../../components/evaluator/DecisionForm'
 import InfoRequestForm from '../../components/evaluator/InfoRequestForm'
 import StatusBadge from '../../components/application/StatusBadge'
@@ -144,6 +145,7 @@ export default function ApplicationDetail() {
   const documents = app.documents || []
   const evaluation = app.latest_ai_evaluation || null
   const infoRequests = app.information_requests || []
+  const transcriptCourses = app.transcript_courses || []
   const isDecided = ['approved', 'rejected'].includes(app.status)
   const statusLink = app.secure_token ? `${window.location.origin}/status/${app.secure_token}` : null
 
@@ -246,6 +248,11 @@ export default function ApplicationDetail() {
               <p className="text-sm font-medium text-gray-700 mb-3">Upload Additional Document</p>
               <DocumentUpload onUpload={handleUpload} uploading={uploading} />
             </div>
+          </Card>
+
+          {/* Per-course credit evaluation */}
+          <Card title={`Transfer Credit Evaluation (${transcriptCourses.length} courses)`}>
+            <CreditEvaluation courses={transcriptCourses} summary={evaluation?.credit_summary} />
           </Card>
 
           {/* AI Evaluation */}

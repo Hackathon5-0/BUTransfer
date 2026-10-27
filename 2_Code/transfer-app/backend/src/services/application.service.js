@@ -4,7 +4,8 @@ import { generateReferenceNumber } from '../utils/reference-number.js';
 import { log as auditLog } from './audit.service.js';
 import * as notificationService from './notification.service.js';
 import * as eligibilityService from './eligibility.service.js';
-import { evaluateApplication } from './ai/azure-foundry.service.js';
+import * as creditService from './credit/credit.service.js';
+import { ENGINE_VERSION } from './credit/engine.js';
 import { notFound, badRequest, forbidden } from '../utils/errors.js';
 
 export async function createApplication(data, source = 'website', createdBy = null) {
@@ -58,6 +59,7 @@ export async function getApplicationById(id) {
   ]);
 
   application.latest_ai_evaluation = evalResult.rows[0] || null;
+  application.transcript_courses = await creditService.getCourseEvaluations(id, application.latest_ai_evaluation?.id || null);
   application.documents = docsResult.rows;
   application.information_requests = infoResult.rows;
   application.recent_audit = auditResult.rows;
@@ -129,6 +131,74 @@ export async function triggerEvaluation(applicationId, triggeredBy) {
   return { evaluation_id: evaluation.id, status: 'pending' };
 }
 
+const PATH_LABELS = {
+  equivalency: 'approved equivalency', rule: 'policy rule', precedent: 'past decision',
+  review: 'department review', needs_information: 'needs information',
+};
+
+// Combines the rule-based eligibility check with the per-course credit evaluation into the
+// evaluation report. Deterministic, and nothing about the student leaves the backend.
+function buildEvaluationResult(application, documents, eligibility, credit, creditError) {
+  const criteria_results = eligibility.criteria_results.map((c) => ({
+    criterion_id: c.id,
+    criterion_name: c.criterion_name,
+    result: c.result === true ? 'pass' : c.result === false ? 'fail' : 'unable_to_determine',
+    score: c.result === true ? 100 : c.result === false ? 0 : 50,
+    explanation: c.reason,
+  }));
+
+  const missing_documents = [];
+  const flags = [];
+  if (!documents.some((d) => d.document_type === 'transcript')) {
+    missing_documents.push({ document_type: 'transcript', description: 'Official transcript from each previous institution.', is_blocking: true });
+  }
+
+  let recommendations;
+  const lines = [];
+  if (credit) {
+    const { summary: s, results, courses } = credit;
+    const count = (path) => s.by_path[path] || 0;
+    results.forEach((r, i) => {
+      const c = courses[i];
+      const label = r.outcome === 'no_credit' ? 'no credit' : r.award || `suggested ${r.suggestion || 'BU course to be decided'}`;
+      lines.push(`${c.course_code} ${c.title} (${c.term}, ${c.grade}): ${PATH_LABELS[r.path]}, ${label}`);
+      if (r.path === 'needs_information') {
+        missing_documents.push({ document_type: 'syllabus', description: `Syllabus for ${c.course_code} ${c.title} (${c.institution}): no description on file to compare.`, is_blocking: false });
+      }
+    });
+    if (count('equivalency')) flags.push({ type: 'positive', title: 'Approved equivalencies', description: `${count('equivalency')} of ${s.courses} courses match approved equivalencies and were applied automatically.` });
+    const ruled = results.filter((r) => r.path === 'rule');
+    if (ruled.length) flags.push({ type: 'concern', title: 'Policy rules applied', description: `${ruled.length} course(s) were decided by BU rules (${[...new Set(ruled.flatMap((r) => r.rules))].join(', ')}).` });
+    const disputed = results.filter((r) => r.reasons.some((t) => t.startsWith('Past decisions disagree')));
+    if (disputed.length) flags.push({ type: 'critical', title: 'Conflicting precedents', description: `${disputed.length} course(s) have past decisions that disagree; the department must decide.` });
+
+    recommendations = `${s.transferred_credits} credits transfer as BU courses and ${s.elective_credits} as elective credit. `
+      + `${count('review')} course(s) need department review${count('needs_information') ? ` and ${count('needs_information')} need more information` : ''} (${s.pending_credits} credits pending). `
+      + `${s.no_credit_courses} course(s) earn no credit. Department evaluators make the final decision on every course.`;
+  } else if (creditError) {
+    flags.push({ type: 'critical', title: 'Course evaluation unavailable', description: creditError });
+    recommendations = 'The per-course credit evaluation could not run. Eligibility criteria were still checked.';
+  } else {
+    recommendations = 'No transcript courses have been read yet. Upload the official transcript PDF, then run the evaluation again for a per-course credit evaluation.';
+  }
+
+  const evaluation_report = [
+    'TRANSFER CREDIT EVALUATION',
+    `Application: ${application.reference_number}`,
+    `From: ${application.transfer_from_institution}`,
+    `To: ${application.transfer_to_program}`,
+    '',
+    `ELIGIBILITY: ${eligibility.score}/100 (${eligibility.eligible ? 'meets the initial requirements' : 'does not meet all required criteria'})`,
+    '',
+    ...(lines.length ? ['COURSES:', ...lines, ''] : []),
+    `SUMMARY: ${recommendations}`,
+    '',
+    `Rule-based credit engine v${ENGINE_VERSION}. The tool only suggests; department evaluators make the final decision (R10).`,
+  ].join('\n');
+
+  return { criteria_results, missing_documents, flags, recommendations, evaluation_report, confidence_score: eligibility.score / 100 };
+}
+
 export async function runEvaluation(evaluationId) {
   await query(`UPDATE ai_evaluations SET status = 'running', started_at = NOW() WHERE id = $1`, [evaluationId]);
   let applicationId;
@@ -145,12 +215,27 @@ export async function runEvaluation(evaluationId) {
 
     const application = appResult.rows[0];
     const documents = docsResult.rows;
-    const criteria = await eligibilityService.getCriteria();
-    const result = await evaluateApplication(application, documents, criteria);
+    const history = application.academic_history || {};
+    const eligibility = await eligibilityService.checkEligibility({
+      gpa: history.gpa,
+      credits: history.credits_completed,
+      institution: application.transfer_from_institution,
+      program: application.transfer_to_program,
+      hasTranscripts: documents.some((d) => d.document_type === 'transcript'),
+    });
+    let credit = null;
+    let creditError = null;
+    try {
+      credit = await creditService.evaluateApplicationCredits(application, evaluationId);
+    } catch (err) {
+      console.error(`[Credit] Course evaluation failed for ${application.reference_number}:`, err.message);
+      creditError = err.message;
+    }
+    const result = buildEvaluationResult(application, documents, eligibility, credit, creditError);
 
     await query(
-      `UPDATE ai_evaluations SET status = 'completed', criteria_results = $1, missing_documents = $2, flags = $3, recommendations = $4, evaluation_report = $5, confidence_score = $6, completed_at = NOW() WHERE id = $7`,
-      [JSON.stringify(result.criteria_results), JSON.stringify(result.missing_documents), JSON.stringify(result.flags), result.recommendations, result.evaluation_report, result.confidence_score, evaluationId]
+      `UPDATE ai_evaluations SET status = 'completed', criteria_results = $1, missing_documents = $2, flags = $3, recommendations = $4, evaluation_report = $5, confidence_score = $6, credit_summary = $7, completed_at = NOW() WHERE id = $8`,
+      [JSON.stringify(result.criteria_results), JSON.stringify(result.missing_documents), JSON.stringify(result.flags), result.recommendations, result.evaluation_report, result.confidence_score, credit ? JSON.stringify(credit.summary) : null, evaluationId]
     );
 
     await updateApplicationStatus(applicationId, 'evaluation_completed', null, 'AI evaluation completed');

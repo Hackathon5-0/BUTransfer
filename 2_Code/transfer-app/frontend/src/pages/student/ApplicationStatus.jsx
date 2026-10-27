@@ -187,6 +187,7 @@ export default function ApplicationStatus() {
   if (!app) return null
 
   const documents = app.documents || []
+  const courses = app.courses || []
   const infoRequests = app.info_requests || []
   const evaluation = app.evaluation || null
   // Decision is available inline on the app object once status is approved/rejected
@@ -390,6 +391,29 @@ export default function ApplicationStatus() {
             ))}
           </dl>
         </Section>
+
+        {/* Courses read from the transcript */}
+        {courses.length > 0 && (
+          <Section title={`Courses on your transcript (${courses.length})`} defaultOpen={false}>
+            <div className="pt-4">
+              <p className="text-xs text-gray-500 mb-3">
+                We read these courses from your transcript. Each one is reviewed by BU's Credit Evaluation team.
+              </p>
+              <ul className="divide-y divide-gray-100">
+                {courses.map(c => (
+                  <li key={c.id} className="py-2 flex items-start justify-between gap-3">
+                    <div>
+                      <span className="font-mono text-xs text-gray-900">{c.course_code}</span>
+                      <span className="text-sm text-gray-700 ml-2">{c.title}</span>
+                      <div className="text-xs text-gray-400">{c.institution} · {c.term}</div>
+                    </div>
+                    <span className="text-xs text-gray-500 whitespace-nowrap">{isDecided ? 'Reviewed' : 'Under review'}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Section>
+        )}
 
         {/* Documents */}
         <Section title={`Documents (${documents.length})`} defaultOpen={false}>

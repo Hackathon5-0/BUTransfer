@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { query } from '../config/db.js';
 import { uploadFile, getFileUrl, deleteFile } from '../utils/storage.js';
 import { notFound, forbidden } from '../utils/errors.js';
+import { importTranscript } from './credit/credit.service.js';
 
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf', 'image/jpeg', 'image/jpg', 'image/png',
@@ -21,7 +22,19 @@ export async function uploadDocument({ buffer, originalName, fileSize, mimeType,
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
     [applicationId, documentType, originalName, storedPath, fileSize, mimeType, uploadedBy, uploadSource, notes]
   );
-  return result.rows[0];
+  const document = result.rows[0];
+
+  // Read course rows from transcript PDFs so the credit evaluation can use them; a transcript
+  // in another layout is still stored, it just contributes no courses
+  if (documentType === 'transcript' && mimeType === 'application/pdf') {
+    try {
+      document.transcript_import = await importTranscript(applicationId, document.id, buffer);
+    } catch (err) {
+      console.error(`[Transcript] Could not read courses from ${originalName}:`, err.message);
+      document.transcript_import = { institution: null, courses: 0, error: err.message };
+    }
+  }
+  return document;
 }
 
 export async function getDocument(documentId, requestorId = null) {

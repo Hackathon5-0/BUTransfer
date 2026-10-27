@@ -64,10 +64,12 @@ export async function uploadDocument(req, res, next) {
 export async function getApplicationStatus(req, res, next) {
   try {
     const application = req.application;
-    const [docsResult, infoResult, evalResult] = await Promise.all([
+    const [docsResult, infoResult, evalResult, coursesResult] = await Promise.all([
       query(`SELECT id, document_type, file_name, file_size, mime_type, created_at FROM application_documents WHERE application_id = $1 ORDER BY created_at ASC`, [application.id]),
       query(`SELECT id, items, message, status, student_response, created_at FROM information_requests WHERE application_id = $1 ORDER BY created_at DESC`, [application.id]),
       query(`SELECT id, status, confidence_score, missing_documents, completed_at FROM ai_evaluations WHERE application_id = $1 ORDER BY created_at DESC LIMIT 1`, [application.id]),
+      // Courses read from the transcript only; per-course recommendations stay internal until an evaluator decides
+      query(`SELECT id, institution, course_code, title, term FROM transcript_courses WHERE application_id = $1 ORDER BY position`, [application.id]),
     ]);
     const isDecided = ['approved', 'rejected'].includes(application.status);
     const evalRow = evalResult.rows[0] || null;
@@ -85,6 +87,7 @@ export async function getApplicationStatus(req, res, next) {
       final_decision: isDecided ? application.final_decision : null,
       evaluator_comments: isDecided ? application.evaluator_comments : null,
       documents: docsResult.rows,
+      courses: coursesResult.rows,
       info_requests: infoResult.rows,
       evaluation: evalRow ? {
         id: evalRow.id, status: evalRow.status,
