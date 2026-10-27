@@ -6,6 +6,9 @@ import * as notificationService from './notification.service.js';
 import * as eligibilityService from './eligibility.service.js';
 import * as creditService from './credit/credit.service.js';
 import { ENGINE_VERSION } from './credit/engine.js';
+import { recommendationOf } from './credit/memory.service.js';
+import { isAgentConfigured, reviewWithAgent } from './ai/agent.service.js';
+import { env } from '../config/env.js';
 import { notFound, badRequest, forbidden } from '../utils/errors.js';
 
 export async function createApplication(data, source = 'website', createdBy = null) {
@@ -59,7 +62,8 @@ export async function getApplicationById(id) {
   ]);
 
   application.latest_ai_evaluation = evalResult.rows[0] || null;
-  application.transcript_courses = await creditService.getCourseEvaluations(id, application.latest_ai_evaluation?.id || null);
+  application.transcript_courses = (await creditService.getCourseEvaluations(id, application.latest_ai_evaluation?.id || null))
+    .map((c) => ({ ...c, recommendation: recommendationOf(c) }));
   application.documents = docsResult.rows;
   application.information_requests = infoResult.rows;
   application.recent_audit = auditResult.rows;
@@ -138,7 +142,7 @@ const PATH_LABELS = {
 
 // Combines the rule-based eligibility check with the per-course credit evaluation into the
 // evaluation report. Deterministic, and nothing about the student leaves the backend.
-function buildEvaluationResult(application, documents, eligibility, credit, creditError) {
+function buildEvaluationResult(application, documents, eligibility, credit, creditError, agent = { status: 'off' }) {
   const criteria_results = eligibility.criteria_results.map((c) => ({
     criterion_id: c.id,
     criterion_name: c.criterion_name,
@@ -171,6 +175,11 @@ function buildEvaluationResult(application, documents, eligibility, credit, cred
     if (ruled.length) flags.push({ type: 'concern', title: 'Policy rules applied', description: `${ruled.length} course(s) were decided by BU rules (${[...new Set(ruled.flatMap((r) => r.rules))].join(', ')}).` });
     const disputed = results.filter((r) => r.reasons.some((t) => t.startsWith('Past decisions disagree')));
     if (disputed.length) flags.push({ type: 'critical', title: 'Conflicting precedents', description: `${disputed.length} course(s) have past decisions that disagree; the department must decide.` });
+    if (agent.status === 'completed') {
+      flags.push({ type: 'positive', title: 'Agent review', description: `The Foundry agent (${env.FOUNDRY_AGENT_NAME}) reviewed ${agent.reviewed} of the ${agent.sent} course(s) left open, using past decisions and the BU catalog.` });
+    } else if (agent.status === 'failed') {
+      flags.push({ type: 'concern', title: 'Agent unavailable', description: `The agent review did not complete (${agent.error}); the engine's suggestions are shown.` });
+    }
 
     recommendations = `${s.transferred_credits} credits transfer as BU courses and ${s.elective_credits} as elective credit. `
       + `${count('review')} course(s) need department review${count('needs_information') ? ` and ${count('needs_information')} need more information` : ''} (${s.pending_credits} credits pending). `
@@ -231,11 +240,24 @@ export async function runEvaluation(evaluationId) {
       console.error(`[Credit] Course evaluation failed for ${application.reference_number}:`, err.message);
       creditError = err.message;
     }
-    const result = buildEvaluationResult(application, documents, eligibility, credit, creditError);
+
+    // The agent reviews only what the engine left open; if it fails, the engine's results still stand
+    let agent = { status: 'off' };
+    if (credit && isAgentConfigured()) {
+      try {
+        agent = await reviewWithAgent(application, credit);
+      } catch (err) {
+        console.error(`[Agent] Review failed for ${application.reference_number}:`, err.message);
+        agent = { status: 'failed', error: err.message };
+      }
+    }
+    const result = buildEvaluationResult(application, documents, eligibility, credit, creditError, agent);
 
     await query(
-      `UPDATE ai_evaluations SET status = 'completed', criteria_results = $1, missing_documents = $2, flags = $3, recommendations = $4, evaluation_report = $5, confidence_score = $6, credit_summary = $7, completed_at = NOW() WHERE id = $8`,
-      [JSON.stringify(result.criteria_results), JSON.stringify(result.missing_documents), JSON.stringify(result.flags), result.recommendations, result.evaluation_report, result.confidence_score, credit ? JSON.stringify(credit.summary) : null, evaluationId]
+      `UPDATE ai_evaluations SET status = 'completed', criteria_results = $1, missing_documents = $2, flags = $3, recommendations = $4, evaluation_report = $5,
+         confidence_score = $6, credit_summary = $7, agent_status = $8, agent_error = $9, completed_at = NOW() WHERE id = $10`,
+      [JSON.stringify(result.criteria_results), JSON.stringify(result.missing_documents), JSON.stringify(result.flags), result.recommendations, result.evaluation_report,
+        result.confidence_score, credit ? JSON.stringify(credit.summary) : null, agent.status, agent.error || null, evaluationId]
     );
 
     await updateApplicationStatus(applicationId, 'evaluation_completed', null, 'AI evaluation completed');

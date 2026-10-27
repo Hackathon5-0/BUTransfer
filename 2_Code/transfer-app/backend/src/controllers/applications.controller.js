@@ -1,6 +1,7 @@
 ﻿import { z } from 'zod';
 import * as applicationService from '../services/application.service.js';
 import * as auditService from '../services/audit.service.js';
+import * as memoryService from '../services/credit/memory.service.js';
 import { badRequest, notFound } from '../utils/errors.js';
 import { query } from '../config/db.js';
 
@@ -130,4 +131,30 @@ export async function addNote(req, res, next) {
   } catch (err) { return next(err); }
 }
 
-export default { listApplications, getApplication, createApplication, triggerEvaluation, createInfoRequest, submitDecision, updateStatus, getAuditLog, addNote };
+const courseDecisionSchema = z.object({
+  action: z.enum(['approve', 'change', 'reject']),
+  outcome: z.enum(['transfer', 'elective', 'no_credit']).optional(),
+  bu_award: z.string().max(200).optional().nullable(),
+  reason: z.string().max(2000).optional().nullable(),
+});
+
+export async function decideCourse(req, res, next) {
+  try {
+    const parseResult = courseDecisionSchema.safeParse(req.body);
+    if (!parseResult.success) return next(badRequest('Validation failed', parseResult.error.issues.map((i) => ({ field: i.path.join('.'), message: i.message }))));
+    const { action, outcome, bu_award, reason } = parseResult.data;
+    const result = await memoryService.recordCourseDecision({
+      applicationId: req.params.id, courseId: req.params.courseId, action, outcome, buAward: bu_award, reason, user: req.user,
+    });
+    return res.status(200).json({ data: result });
+  } catch (err) { return next(err); }
+}
+
+export async function approveAutomaticCourses(req, res, next) {
+  try {
+    const result = await memoryService.approveAutomatic(req.params.id, req.user);
+    return res.status(200).json({ data: result });
+  } catch (err) { return next(err); }
+}
+
+export default { listApplications, getApplication, createApplication, triggerEvaluation, createInfoRequest, submitDecision, updateStatus, getAuditLog, addNote, decideCourse, approveAutomaticCourses };

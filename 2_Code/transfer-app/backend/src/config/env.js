@@ -26,11 +26,11 @@ const envSchema = z.object({
   // CORS
   CORS_ORIGINS: z.string().optional().default('http://localhost:5173,http://localhost:4000'),
 
-  // Azure OpenAI (optional - empty string treated as not configured)
-  AZURE_OPENAI_ENDPOINT: z.string().optional().transform(v => v || undefined),
-  AZURE_OPENAI_API_KEY: z.string().optional().transform(v => v || undefined),
-  AZURE_OPENAI_DEPLOYMENT: z.string().optional().default('gpt-4o'),
-  AZURE_OPENAI_API_VERSION: z.string().optional().default('2024-08-01-preview'),
+  // Microsoft Foundry agent (optional - empty endpoint means the credit engine runs without the agent).
+  // Authenticates with DefaultAzureCredential: `az login` locally, managed identity on App Service.
+  FOUNDRY_PROJECT_ENDPOINT: z.string().optional().transform(v => v || undefined),
+  FOUNDRY_AGENT_NAME: z.string().optional().default('bu-transfer-evaluator'),
+  FOUNDRY_MODEL_DEPLOYMENT: z.string().optional().transform(v => v || undefined),
 
   // Storage
   STORAGE_PROVIDER: z.string().optional().default('supabase'),

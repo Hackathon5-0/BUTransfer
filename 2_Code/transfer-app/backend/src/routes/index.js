@@ -7,6 +7,7 @@ import evaluatorsRoutes from './evaluators.js';
 import adminRoutes from './admin.js';
 import notificationsRoutes from './notifications.js';
 import intakeRoutes from './intake.js';
+import memoryRoutes from './memory.js';
 
 const router = Router();
 
@@ -22,6 +23,7 @@ router.use('/evaluators', evaluatorsRoutes);
 router.use('/admin', adminRoutes);
 router.use('/notifications', notificationsRoutes);
 router.use('/intake', intakeRoutes);
+router.use('/memory', memoryRoutes);
 
 router.use((_req, res) => {
   res.status(404).json({ error: { code: 'NOT_FOUND', message: 'The requested API endpoint does not exist' } });

@@ -11,9 +11,12 @@
     "db:seed:credit": "node scripts/seed-credit-data.js",
     "db:seed:samples": "node scripts/seed-sample-students.js",
     "credit:eval": "node scripts/eval-credit-engine.js",
+    "agent:create": "node scripts/create-agent.js",
     "db:reset": "node scripts/reset.js"
   },
   "dependencies": {
+    "@azure/ai-projects": "^2.9.0",
+    "@azure/identity": "^4.14.0",
     "@supabase/supabase-js": "^2.45.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -22,7 +25,6 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
-    "openai": "^4.67.0",
     "pdfjs-dist": "^4.10.38",
     "pg": "^8.13.0",
     "uuid": "^10.0.0",

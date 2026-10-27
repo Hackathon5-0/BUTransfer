@@ -12,7 +12,7 @@ const server = app.listen(PORT, () => {
   console.log(`  Port        : ${PORT}`);
   console.log(`  Health      : http://localhost:${PORT}/api/health`);
   console.log(`  Supabase    : ${env.SUPABASE_URL}`);
-  console.log(`  Azure AI    : ${env.AZURE_OPENAI_ENDPOINT ? 'configured' : 'mock mode (not configured)'}`);
+  console.log(`  Agent       : ${env.FOUNDRY_PROJECT_ENDPOINT ? `Foundry agent ${env.FOUNDRY_AGENT_NAME}` : 'off (credit engine only)'}`);
   console.log();
 });
 

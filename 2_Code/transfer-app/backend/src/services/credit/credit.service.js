@@ -10,8 +10,9 @@ async function getEngine() {
     enginePromise = (async () => {
       const [catalog, equivalencies, decisions] = await Promise.all([
         query(`SELECT institution, course_code, title, program, level, description, learning_outcomes, syllabus FROM catalog_courses`),
-        query(`SELECT eq_id, institution, course_code, bu_course, outcome FROM equivalencies`),
-        query(`SELECT decision_id, institution, course_code, proposed_bu, decision, bu_awarded, reason, TO_CHAR(decided_on, 'YYYY-MM-DD') AS decided_on FROM past_decisions`),
+        query(`SELECT eq_id, institution, course_code, bu_course, outcome FROM equivalencies WHERE status = 'active'`),
+        query(`SELECT decision_id, institution, course_code, proposed_bu, decision, bu_awarded, reason, TO_CHAR(decided_on, 'YYYY-MM-DD') AS decided_on
+               FROM past_decisions WHERE status = 'active'`),
       ]);
       if (catalog.rows.length === 0) throw new Error('Transfer credit reference data is not loaded. Run `npm run db:seed:credit`.');
       return createEngine({
@@ -70,27 +71,37 @@ export async function evaluateApplicationCredits(application, evaluationId) {
     { major: application.transfer_to_program },
   );
 
+  const evaluationIds = [];
   for (let i = 0; i < courses.length; i++) {
     const r = results[i];
-    await query(
+    const { rows: [row] } = await query(
       `INSERT INTO course_evaluations (application_id, ai_evaluation_id, transcript_course_id, path, outcome, award, suggestion, bu_credits, confidence,
          rules, precedent_ids, equivalency_id, candidates, reasons, engine_version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
       [application.id, evaluationId, courses[i].id, r.path, r.outcome, r.award, r.suggestion, r.bu_credits, r.confidence,
         r.rules, r.precedent_ids, r.equivalency_id, JSON.stringify(r.candidates), JSON.stringify(r.reasons), ENGINE_VERSION]
     );
+    evaluationIds.push(row.id);
   }
-  return { summary, results, courses };
+  return { summary, results, courses, evaluationIds };
 }
 
-/** Transcript courses with the given evaluation's result for each (result fields are null before any evaluation). */
+/**
+ * Transcript courses with the given evaluation's engine and agent results, and the evaluator's decision.
+ * Result fields are null before any evaluation; decision fields are null until an evaluator decides.
+ */
 export async function getCourseEvaluations(applicationId, evaluationId = null) {
   const result = await query(
     `SELECT tc.id, tc.position, tc.institution, tc.course_code, tc.title, tc.term, tc.credit_system, tc.source_credits, tc.grade,
             ce.path, ce.outcome, ce.award, ce.suggestion, ce.bu_credits, ce.confidence, ce.rules, ce.precedent_ids, ce.equivalency_id,
-            ce.candidates, ce.reasons
+            ce.candidates, ce.reasons,
+            ce.agent_outcome, ce.agent_bu_course, ce.agent_confidence, ce.agent_rationale, ce.agent_precedent_ids, ce.agent_missing,
+            cd.action AS decision_action, cd.outcome AS decision_outcome, cd.bu_award AS decision_award, cd.reason AS decision_reason,
+            cd.matched_recommendation, cd.past_decision_id, cd.decided_at, p.full_name AS decided_by_name
      FROM transcript_courses tc
      LEFT JOIN course_evaluations ce ON ce.transcript_course_id = tc.id AND ce.ai_evaluation_id = $2
+     LEFT JOIN course_decisions cd ON cd.transcript_course_id = tc.id
+     LEFT JOIN profiles p ON p.id = cd.decided_by
      WHERE tc.application_id = $1
      ORDER BY tc.position`,
     [applicationId, evaluationId]
