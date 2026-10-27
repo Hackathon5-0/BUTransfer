@@ -72,9 +72,14 @@ export default function EvaluatorDashboard() {
           <h1 className="text-xl font-bold text-gray-900">Evaluator Dashboard</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage and review transfer applications</p>
         </div>
-        <Button size="sm" onClick={load} variant="secondary">
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={load} variant="secondary">
+            Refresh
+          </Button>
+          <Button size="sm" onClick={() => navigate('/evaluator/applications/new')}>
+            New Application
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}

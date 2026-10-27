@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Globe, Mail, UserCheck, RefreshCw, Brain,
-  MessageSquare, Gavel, FileText, Clock, User, StickyNote
+  MessageSquare, Gavel, FileText, Clock, User, StickyNote, Link2
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
@@ -145,6 +145,16 @@ export default function ApplicationDetail() {
   const evaluation = app.latest_ai_evaluation || null
   const infoRequests = app.information_requests || []
   const isDecided = ['approved', 'rejected'].includes(app.status)
+  const statusLink = app.secure_token ? `${window.location.origin}/status/${app.secure_token}` : null
+
+  const copyStatusLink = async () => {
+    try {
+      await navigator.clipboard.writeText(statusLink)
+      toast.success('Status link copied')
+    } catch {
+      toast.error('Could not copy; select the link and copy it manually')
+    }
+  }
 
   const src = SOURCE_CONFIG[app.source] || SOURCE_CONFIG.website
   const SourceIcon = src.Icon
@@ -322,6 +332,29 @@ export default function ApplicationDetail() {
               {app.evaluator_name || 'Unassigned'}
             </p>
           </div>
+
+          {/* Student status link: lets staff hand the link to students they applied for */}
+          {statusLink && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <Link2 className="w-4 h-4" />
+                Student Status Link
+              </h3>
+              <p className="text-xs text-gray-500 mb-2">
+                Share with the student so they can follow the application and upload documents.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  readOnly
+                  value={statusLink}
+                  onFocus={e => e.target.select()}
+                  aria-label="Student status link"
+                  className="flex-1 min-w-0 text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700"
+                />
+                <Button size="sm" variant="secondary" onClick={copyStatusLink}>Copy</Button>
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">

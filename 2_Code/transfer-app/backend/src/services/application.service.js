@@ -30,10 +30,10 @@ export async function createApplication(data, source = 'website', createdBy = nu
 
   const application = result.rows[0];
 
-  if (source !== 'evaluator_submitted') {
-    await updateApplicationStatus(application.id, 'submitted', createdBy, 'Application received');
-    application.status = 'submitted';
-  }
+  // Staff-raised applications are filed on the student's behalf, so they're submitted straight away too
+  await updateApplicationStatus(application.id, 'submitted', createdBy,
+    source === 'evaluator_submitted' ? 'Application raised by staff' : 'Application received');
+  application.status = 'submitted';
 
   await auditLog({ applicationId: application.id, action: 'application_created', actorId: createdBy, actorEmail: data.student_email, newValue: { reference_number: referenceNumber, source, status: application.status }, details: { source } });
   await notificationService.applicationSubmitted(application);

@@ -6,18 +6,19 @@ import {
   Users,
   Settings,
   ScrollText,
-  ClipboardList
+  FilePlus
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 
 const evaluatorLinks = [
   { to: '/evaluator', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/evaluator/applications', label: 'Applications', icon: ClipboardList }
+  { to: '/evaluator/applications/new', label: 'New Application', icon: FilePlus }
 ]
 
 const adminLinks = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/evaluator', label: 'Applications', icon: FileText },
+  { to: '/evaluator', label: 'Applications', icon: FileText, end: true },
+  { to: '/evaluator/applications/new', label: 'New Application', icon: FilePlus },
   { to: '/admin/users', label: 'Evaluators', icon: Users },
   { to: '/admin/criteria', label: 'Criteria', icon: Settings },
   { to: '/admin/audit', label: 'Audit Logs', icon: ScrollText }
